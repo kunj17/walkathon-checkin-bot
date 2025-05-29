@@ -30,3 +30,5 @@ jobs:
       run: python checkin_bot.py
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        WALKATHONPASSSYSTEM: ${{ secrets.WALKATHONPASSSYSTEM }}
+
