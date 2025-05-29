@@ -40,4 +40,4 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: |
-          python walkathon_checkin.py
+          python checkin_bot.py
