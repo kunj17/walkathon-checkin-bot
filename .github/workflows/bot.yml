@@ -3,16 +3,16 @@ name: Walkathon Check-In Bot
 on:
   schedule:
     - cron: '0 */2 * * *'  # Runs every 2 hours
-  workflow_dispatch:       # Allows manual trigger from GitHub UI
+  workflow_dispatch:       # Manual trigger option
 
 concurrency:
   group: walkathon-checkin-bot
-  cancel-in-progress: true  # Ensures only one active instance
+  cancel-in-progress: true
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 125  # Kill if stuck after 2 hours and 5 minutes
+    timeout-minutes: 125
 
     steps:
       - name: Checkout repository
@@ -26,15 +26,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
+          sudo apt-get install -y tesseract-ocr libzbar0
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Write service credentials to file
-        env:
-          WALKATHONPASSSYSTEM: ${{ secrets.WALKATHONPASSSYSTEM }}
         run: |
-          echo "$WALKATHONPASSSYSTEM" > walkathon-creds.json
+          echo "${{ vars.WALKATHONPASSSYSTEM }}" > walkathon-creds.json
 
       - name: Run Walkathon Check-In Bot
         env:
