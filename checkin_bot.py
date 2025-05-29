@@ -46,14 +46,25 @@ def mark_arrived(reg_id):
     return row
 
 def extract_registration_id_from_bytes(img_bytes):
+    import cv2
+    from pyzbar.pyzbar import decode
+    import numpy as np
+
     np_arr = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    decoded = decode(img)
+
+    if img is None:
+        return None
+
+    # Convert to grayscale to improve decoding
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    decoded = decode(gray)
 
     if not decoded:
         return None
 
     return decoded[0].data.decode('utf-8').strip().upper()
+
 
 # === Telegram Handlers ===
 
