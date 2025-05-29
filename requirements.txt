@@ -5,3 +5,5 @@ Pillow==10.2.0
 pytesseract==0.3.10
 fuzzywuzzy==0.18.0
 python-Levenshtein==0.25.1
+pyzbar
+opencv-python
