@@ -1,34 +1,33 @@
-name: Walkathon Check-In Bot
+name: Walkathon Check-in Bot
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    paths:
+      - '**.py'
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y tesseract-ocr libtesseract-dev libleptonica-dev
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Install Python dependencies
-      run: pip install -r requirements.txt
-
-    - name: Run Walkathon Check-In Bot
-      run: python checkin_bot.py
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        WALKATHONPASSSYSTEM: ${{ secrets.WALKATHONPASSSYSTEM }}
-
+      - name: Run check-in bot
+        env:
+          WALKATHONPASSSYSTEM: ${{ secrets.WALKATHONPASSSYSTEM }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          python checkin_bot.py
