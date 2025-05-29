@@ -2,33 +2,36 @@ import os
 import json
 import time
 import threading
+import numpy as np
 from io import BytesIO
 from datetime import datetime
 
 import gspread
+import cv2
+from PIL import Image
+from pyzbar.pyzbar import decode
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 )
 from fuzzywuzzy import process
-from PIL import Image
 
-# === Google Sheets Auth via GitHub Actions Environment Variable ===
+# === Environment Config ===
 GOOGLE_CREDS = json.loads(os.environ['WALKATHONPASSSYSTEM'])
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = "-1002649361802"
+
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHxX7dCm66kuYS4krtY6Mc01GjhbOQ"
+SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
+
+# === Google Sheets Auth ===
 SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, SCOPES)
 gspread_client = gspread.authorize(creds)
-
-# === Constants ===
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHxX7dCm66kuYS4krtY6Mc01GjhbOQ/edit?usp=sharing"
-SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
-CHAT_ID = "-1002649361802"
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-
 sheet = gspread_client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
 
-# === Utility Functions ===
+# === Bot Utility Functions ===
 
 def get_guest_list():
     records = sheet.get_all_records()
@@ -42,17 +45,27 @@ def mark_arrived(reg_id):
     sheet.update_cell(row, sheet.find("Check-In Time").col, now)
     return row
 
-def extract_registration_id_from_image(image_path):
-    return os.path.splitext(os.path.basename(image_path))[0].upper()
+def extract_registration_id_from_bytes(img_bytes):
+    np_arr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    decoded = decode(img)
 
-# === Bot Handlers ===
+    if not decoded:
+        return None
+
+    return decoded[0].data.decode('utf-8').strip().upper()
+
+# === Telegram Handlers ===
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
     file = await photo.get_file()
     img_bytes = await file.download_as_bytearray()
-    img = Image.open(BytesIO(img_bytes))
-    reg_id = extract_registration_id_from_image(file.file_path)  # placeholder for OCR/barcode logic
+    reg_id = extract_registration_id_from_bytes(img_bytes)
+
+    if not reg_id:
+        await update.message.reply_text("❌ Could not read QR code from image.")
+        return
 
     guests_by_id, _ = get_guest_list()
     if reg_id not in guests_by_id:
@@ -106,11 +119,11 @@ async def cmd_b(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 *Walkathon Check-in Bot Commands:*\n\n"
+        "🤖 *Walkathon Check-in Bot Help:*\n\n"
         "/summary – Show arrival stats\n"
-        "/status <Reg ID> – Check status of one guest\n"
-        "/b <name> – Search guest by name\n"
-        "📸 Upload a parking pass photo to check-in.",
+        "/status <Reg ID> – Check guest status\n"
+        "/b <name> – Search by name\n"
+        "📸 Upload a parking pass photo with QR code to check-in.",
         parse_mode='Markdown'
     )
 
@@ -121,7 +134,7 @@ def run_self_destruct_timer():
         os._exit(0)
     threading.Thread(target=shutdown, daemon=True).start()
 
-# === Start Bot ===
+# === Main Bot Startup ===
 
 if __name__ == '__main__':
     run_self_destruct_timer()
