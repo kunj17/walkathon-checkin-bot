@@ -5,6 +5,7 @@ import threading
 import numpy as np
 from io import BytesIO
 from datetime import datetime
+from pyzbar.pyzbar import decode
 
 import gspread
 import cv2
@@ -46,33 +47,43 @@ def mark_arrived(reg_id):
     return row
 
 def extract_registration_id_from_bytes(img_bytes):
-    import cv2
-    import numpy as np
-    from pyzbar.pyzbar import decode
+    try:
+        # Save for manual debugging (always!)
+        with open("debug_telegram_image.jpg", "wb") as f:
+            f.write(img_bytes)
 
-    # Decode image from bytes
-    np_arr = np.frombuffer(img_bytes, np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        # Decode image
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-    if img is None:
-        print("❌ Could not decode image.")
+        if img is None:
+            print("❌ Could not decode image.")
+            return None
+
+        height, width, _ = img.shape
+        print(f"📐 Image dimensions: {width}x{height}")
+
+        # Try full image first
+        decoded_full = decode(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+        if decoded_full:
+            reg_id = decoded_full[0].data.decode('utf-8').strip().upper()
+            print(f"✅ QR (full image): {reg_id}")
+            return reg_id
+
+        # Try bottom crop if full fails (where QR likely is)
+        crop = img[int(height * 0.55):, :]
+        decoded_crop = decode(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY))
+        if decoded_crop:
+            reg_id = decoded_crop[0].data.decode('utf-8').strip().upper()
+            print(f"✅ QR (cropped): {reg_id}")
+            return reg_id
+
+        print("❌ QR decode failed.")
         return None
 
-    height, width, _ = img.shape
-
-    # Focus on bottom 30–40% of the image, assuming QR is there
-    crop = img[int(height * 0.55):, :]  # bottom 45%
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-
-    decoded = decode(gray)
-
-    if not decoded:
-        print("❌ QR decode failed after crop.")
+    except Exception as e:
+        print(f"🔥 Exception during QR decode: {e}")
         return None
-
-    reg_id = decoded[0].data.decode('utf-8').strip().upper()
-    print(f"✅ Decoded QR: {reg_id}")
-    return reg_id
 
 
 
@@ -86,6 +97,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await largest.get_file()
     img_bytes = await file.download_as_bytearray()
     reg_id = extract_registration_id_from_bytes(img_bytes)
+
 
     if not reg_id:
         await update.message.reply_text("❌ Could not read QR code from image.")
