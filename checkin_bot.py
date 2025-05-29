@@ -50,26 +50,30 @@ def extract_registration_id_from_bytes(img_bytes):
     import numpy as np
     from pyzbar.pyzbar import decode
 
-    # Save image for debug and decode from disk
-    with open("temp_qr.jpg", "wb") as f:
-        f.write(img_bytes)
-
-    img = cv2.imread("temp_qr.jpg")
+    # Decode image from bytes
+    np_arr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
     if img is None:
-        print("❌ Could not read image from disk.")
+        print("❌ Could not decode image.")
         return None
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    height, width, _ = img.shape
+
+    # Focus on bottom 30–40% of the image, assuming QR is there
+    crop = img[int(height * 0.55):, :]  # bottom 45%
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
     decoded = decode(gray)
 
     if not decoded:
-        print("❌ QR decode returned empty.")
+        print("❌ QR decode failed after crop.")
         return None
 
     reg_id = decoded[0].data.decode('utf-8').strip().upper()
-    print(f"✅ QR decoded: {reg_id}")
+    print(f"✅ Decoded QR: {reg_id}")
     return reg_id
+
 
 
 
