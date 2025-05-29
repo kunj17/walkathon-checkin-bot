@@ -39,5 +39,6 @@ jobs:
       - name: Run Walkathon Check-In Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          WALKATHONPASSSYSTEM: ${{ vars.WALKATHONPASSSYSTEM }}
         run: |
           python checkin_bot.py
