@@ -7,24 +7,28 @@ from datetime import datetime
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from telegram import Update, InputFile
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+)
 from fuzzywuzzy import process
 from PIL import Image
 
-# === Google Sheets Auth via GitHub Secret ===
+# === Google Sheets Auth via GitHub Actions Environment Variable ===
 GOOGLE_CREDS = json.loads(os.environ['WALKATHONPASSSYSTEM'])
 SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, SCOPES)
 gspread_client = gspread.authorize(creds)
 
-# === Sheet & Telegram Settings ===
+# === Constants ===
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHxX7dCm66kuYS4krtY6Mc01GjhbOQ/edit?usp=sharing"
 SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
 CHAT_ID = "-1002649361802"
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 sheet = gspread_client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
+
+# === Utility Functions ===
 
 def get_guest_list():
     records = sheet.get_all_records()
@@ -39,15 +43,16 @@ def mark_arrived(reg_id):
     return row
 
 def extract_registration_id_from_image(image_path):
-    # Simulated for demo: extract registration ID from image filename
     return os.path.splitext(os.path.basename(image_path))[0].upper()
+
+# === Bot Handlers ===
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
     file = await photo.get_file()
     img_bytes = await file.download_as_bytearray()
     img = Image.open(BytesIO(img_bytes))
-    reg_id = extract_registration_id_from_image(file.file_path)  # simulate barcode read
+    reg_id = extract_registration_id_from_image(file.file_path)  # placeholder for OCR/barcode logic
 
     guests_by_id, _ = get_guest_list()
     if reg_id not in guests_by_id:
@@ -101,11 +106,12 @@ async def cmd_b(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 Walkathon Check-in Bot Help:\n\n"
+        "🤖 *Walkathon Check-in Bot Commands:*\n\n"
         "/summary – Show arrival stats\n"
-        "/status <Reg ID> – Check one guest\n"
-        "/b <name> – Search by name\n"
-        "📸 Upload a parking pass photo to check-in."
+        "/status <Reg ID> – Check status of one guest\n"
+        "/b <name> – Search guest by name\n"
+        "📸 Upload a parking pass photo to check-in.",
+        parse_mode='Markdown'
     )
 
 def run_self_destruct_timer():
@@ -113,9 +119,10 @@ def run_self_destruct_timer():
         print("⏳ 2 hours reached. Shutting down...")
         time.sleep(7200)
         os._exit(0)
-    threading.Thread(target=shutdown).start()
+    threading.Thread(target=shutdown, daemon=True).start()
 
-# === Run Bot ===
+# === Start Bot ===
+
 if __name__ == '__main__':
     run_self_destruct_timer()
 
