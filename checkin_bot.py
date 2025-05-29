@@ -76,8 +76,10 @@ def extract_registration_id_from_bytes(img_bytes):
 # === Telegram Handlers ===
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    photo = update.message.photo[-1]
-    file = await photo.get_file()
+    # Force Telegram to give you the highest-resolution version
+    photo = update.message.photo
+    largest = max(photo, key=lambda p: p.file_size)
+    file = await largest.get_file()
     img_bytes = await file.download_as_bytearray()
     reg_id = extract_registration_id_from_bytes(img_bytes)
 
