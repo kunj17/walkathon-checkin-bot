@@ -19,7 +19,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, SCOPES)
 gspread_client = gspread.authorize(creds)
 
 # === Sheet & Telegram Settings ===
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHx7dCm66kuYS4krtY6Mc01GjhbOQ/edit"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHxX7dCm66kuYS4krtY6Mc01GjhbOQ/edit?usp=sharing"
 SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
 CHAT_ID = "-1002649361802"
 TOKEN = os.getenv("TELEGRAM_TOKEN")
