@@ -47,23 +47,30 @@ def mark_arrived(reg_id):
 
 def extract_registration_id_from_bytes(img_bytes):
     import cv2
-    from pyzbar.pyzbar import decode
     import numpy as np
+    from pyzbar.pyzbar import decode
 
-    np_arr = np.frombuffer(img_bytes, np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    # Save image for debug and decode from disk
+    with open("temp_qr.jpg", "wb") as f:
+        f.write(img_bytes)
+
+    img = cv2.imread("temp_qr.jpg")
 
     if img is None:
+        print("❌ Could not read image from disk.")
         return None
 
-    # Convert to grayscale to improve decoding
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     decoded = decode(gray)
 
     if not decoded:
+        print("❌ QR decode returned empty.")
         return None
 
-    return decoded[0].data.decode('utf-8').strip().upper()
+    reg_id = decoded[0].data.decode('utf-8').strip().upper()
+    print(f"✅ QR decoded: {reg_id}")
+    return reg_id
+
 
 
 # === Telegram Handlers ===
