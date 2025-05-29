@@ -1,22 +1,27 @@
-name: Walkathon Check-in Bot
+name: Walkathon Check-In Bot
 
 on:
-  push:
-    paths:
-      - '**.py'
-  workflow_dispatch:
+  schedule:
+    - cron: '0 */2 * * *'  # Runs every 2 hours
+  workflow_dispatch:       # Allows manual trigger from GitHub UI
+
+concurrency:
+  group: walkathon-checkin-bot
+  cancel-in-progress: true  # Ensures only one active instance
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 125  # Kill if stuck after 2 hours and 5 minutes
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -25,9 +30,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run check-in bot
+      - name: Write service credentials to file
         env:
           WALKATHONPASSSYSTEM: ${{ secrets.WALKATHONPASSSYSTEM }}
+        run: |
+          echo "$WALKATHONPASSSYSTEM" > walkathon-creds.json
+
+      - name: Run Walkathon Check-In Bot
+        env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: |
-          python checkin_bot.py
+          python walkathon_checkin.py
