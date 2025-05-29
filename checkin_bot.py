@@ -1,161 +1,132 @@
 import os
 import json
-import logging
-import pytz
-from datetime import datetime
+import time
+import threading
 from io import BytesIO
+from datetime import datetime
 
 import gspread
-import pytesseract
-from PIL import Image
 from oauth2client.service_account import ServiceAccountCredentials
-from fuzzywuzzy import fuzz
+from telegram import Update, InputFile
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from fuzzywuzzy import process
+from PIL import Image
 
-from telegram import Update, Bot
-from telegram.ext import (
-    ApplicationBuilder,
-    MessageHandler,
-    filters,
-    CommandHandler,
-    ContextTypes,
-)
-
-# === CONFIG ===
-SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHxX7dCm66kuYS4krtY6Mc01GjhbOQ"
-TIMEZONE = "America/Chicago"
-TELEGRAM_GROUP_ID = "-1002649361802"
-
-# === GOOGLE CREDS (from GitHub secret) ===
-google_creds_str = os.environ.get("WALKATHONPASSSYSTEM")
-if not google_creds_str:
-    raise EnvironmentError("Missing WALKATHONPASSSYSTEM env variable.")
-google_creds = json.loads(google_creds_str)
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds, scope)
+# === Google Sheets Auth via GitHub Secret ===
+GOOGLE_CREDS = json.loads(os.environ['WALKATHONPASSSYSTEM'])
+SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, SCOPES)
 gspread_client = gspread.authorize(creds)
+
+# === Sheet & Telegram Settings ===
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1qKZSQPbLY9SlHGHx7dCm66kuYS4krtY6Mc01GjhbOQ/edit"
+SHEET_NAME = "Walkathon 2025 Guests Lists For Bot"
+CHAT_ID = "-1002649361802"
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+
 sheet = gspread_client.open_by_url(SHEET_URL).worksheet(SHEET_NAME)
 
-# === SETUP LOGGER ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def get_guest_list():
+    records = sheet.get_all_records()
+    return {row['Registration ID']: row for row in records}, records
 
-# === HELPER FUNCTIONS ===
+def mark_arrived(reg_id):
+    cell = sheet.find(reg_id)
+    row = cell.row
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet.update_cell(row, sheet.find("Status").col, "Arrived")
+    sheet.update_cell(row, sheet.find("Check-In Time").col, now)
+    return row
 
-def get_current_time():
-    return datetime.now(pytz.timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
-
-def find_guest_by_text(text):
-    text = text.strip().upper()
-    guests = sheet.get_all_records()
-    for i, guest in enumerate(guests):
-        if guest['Registration ID'].strip().upper() == text:
-            return i + 2, guest  # offset by 2 for header + 1-index
-    return None, None
-
-def fuzzy_find_by_name(name):
-    name = name.strip().lower()
-    guests = sheet.get_all_records()
-    best_score, best_index, best_guest = 0, None, None
-    for i, guest in enumerate(guests):
-        score = fuzz.partial_ratio(name, guest['Name'].lower())
-        if score > best_score:
-            best_score = score
-            best_index = i + 2
-            best_guest = guest
-    return (best_index, best_guest) if best_score >= 70 else (None, None)
-
-def mark_arrival(row_index):
-    sheet.update_cell(row_index, 6, "Arrived")  # Status
-    sheet.update_cell(row_index, 7, get_current_time())  # Check-In Time
-
-# === TELEGRAM BOT HANDLERS ===
+def extract_registration_id_from_image(image_path):
+    # Simulated for demo: extract registration ID from image filename
+    return os.path.splitext(os.path.basename(image_path))[0].upper()
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    photo = await update.message.photo[-1].get_file()
-    image_bytes = BytesIO()
-    await photo.download_to_memory(out=image_bytes)
-    image_bytes.seek(0)
-    text = pytesseract.image_to_string(Image.open(image_bytes)).strip()
+    photo = update.message.photo[-1]
+    file = await photo.get_file()
+    img_bytes = await file.download_as_bytearray()
+    img = Image.open(BytesIO(img_bytes))
+    reg_id = extract_registration_id_from_image(file.file_path)  # simulate barcode read
 
-    row_index, guest = find_guest_by_text(text)
-    if not guest:
-        await update.message.reply_text(f"❌ Could not identify guest from: {text}")
+    guests_by_id, _ = get_guest_list()
+    if reg_id not in guests_by_id:
+        await update.message.reply_text(f"⚠️ No guest found for Reg ID `{reg_id}`", parse_mode='Markdown')
         return
 
-    mark_arrival(row_index)
-    message = f"✅ Guest *{guest['Name']}* ({guest['Guest Type']}) has arrived!\n🕒 {get_current_time()}"
-    await context.bot.send_message(chat_id=TELEGRAM_GROUP_ID, text=message, parse_mode="Markdown")
+    guest = guests_by_id[reg_id]
+    if guest['Status'].lower() == 'arrived':
+        await update.message.reply_text(f"✅ {guest['Name']} already checked in.")
+        return
 
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /status <Registration ID>")
-        return
-    reg_id = " ".join(context.args).strip()
-    _, guest = find_guest_by_text(reg_id)
-    if not guest:
-        await update.message.reply_text("❌ Guest not found.")
-        return
-    await update.message.reply_text(f"Guest: {guest['Name']} ({guest['Guest Type']})\nStatus: {guest['Status']}")
-
-async def cmd_b(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /b <guest name>")
-        return
-    name_query = " ".join(context.args).strip()
-    _, guest = fuzzy_find_by_name(name_query)
-    if not guest:
-        await update.message.reply_text("❌ No matching guest found.")
-        return
-    status = guest["Status"]
-    checkin = guest.get("Check-In Time", "N/A")
-    msg = (
-        f"Guest: {guest['Name']} ({guest['Guest Type']})\n"
-        f"Status: {status}"
-    )
-    if status.lower() == "arrived":
-        msg += f"\n🕒 Arrived at: {checkin}"
-    await update.message.reply_text(msg)
+    mark_arrived(reg_id)
+    await context.bot.send_message(chat_id=CHAT_ID, text=f"🟢 {guest['Name']} ({guest['Guest Type']}) has arrived.")
+    await update.message.reply_text(f"🎉 Welcome {guest['Name']}! Check-in confirmed.")
 
 async def cmd_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    guests = sheet.get_all_records()
+    _, guests = get_guest_list()
+    ca = [g for g in guests if g['Guest Type'] == 'CA' and g['Status'].lower() == 'arrived']
+    pa = [g for g in guests if g['Guest Type'] == 'PA' and g['Status'].lower() == 'arrived']
 
-    ca_guests = [g for g in guests if g["Guest Type"] == "CA"]
-    pa_guests = [g for g in guests if g["Guest Type"] == "PA"]
+    msg = f"📊 Check-in Summary:\n\n✅ CA Guests: {len(ca)}\n✅ PA Guests: {len(pa)}\n\n"
+    if ca:
+        msg += "👥 CA Arrived:\n" + "\n".join([g['Name'] for g in ca]) + "\n\n"
+    if pa:
+        msg += "👥 PA Arrived:\n" + "\n".join([g['Name'] for g in pa])
+    await update.message.reply_text(msg)
 
-    ca_arrived = [g for g in ca_guests if g["Status"].lower() == "arrived"]
-    pa_arrived = [g for g in pa_guests if g["Status"].lower() == "arrived"]
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if not args:
+        await update.message.reply_text("Usage: /status <Registration ID>")
+        return
+    reg_id = args[0].upper()
+    guests_by_id, _ = get_guest_list()
+    if reg_id not in guests_by_id:
+        await update.message.reply_text("❌ Registration ID not found")
+        return
+    guest = guests_by_id[reg_id]
+    await update.message.reply_text(f"👤 {guest['Name']}\nStatus: {guest['Status']}\nCheck-in Time: {guest['Check-In Time']}")
 
-    ca_names = "\n".join([f"• {g['Name']} ({g.get('Check-In Time', 'Time Unknown')})" for g in ca_arrived])
-    pa_names = "\n".join([f"• {g['Name']} ({g.get('Check-In Time', 'Time Unknown')})" for g in pa_arrived])
+async def cmd_b(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name_query = " ".join(context.args)
+    if not name_query:
+        await update.message.reply_text("Usage: /b <name>")
+        return
+    _, guests = get_guest_list()
+    names = [g['Name'] for g in guests]
+    best, _ = process.extractOne(name_query, names)
+    guest = next(g for g in guests if g['Name'] == best)
+    await update.message.reply_text(f"👤 {guest['Name']}\nStatus: {guest['Status']}\nCheck-in Time: {guest['Check-In Time']}")
 
-    msg = (
-        f"📊 *Arrival Summary*\n\n"
-        f"👥 *CA Guests*: {len(ca_arrived)}/{len(ca_guests)} arrived\n"
-        f"{ca_names or '_None yet_'}\n\n"
-        f"👔 *PA Guests*: {len(pa_arrived)}/{len(pa_guests)} arrived\n"
-        f"{pa_names or '_None yet_'}"
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🤖 Walkathon Check-in Bot Help:\n\n"
+        "/summary – Show arrival stats\n"
+        "/status <Reg ID> – Check one guest\n"
+        "/b <name> – Search by name\n"
+        "📸 Upload a parking pass photo to check-in."
     )
 
-    await update.message.reply_text(msg, parse_mode="Markdown")
+def run_self_destruct_timer():
+    def shutdown():
+        print("⏳ 2 hours reached. Shutting down...")
+        time.sleep(7200)
+        os._exit(0)
+    threading.Thread(target=shutdown).start()
 
+# === Run Bot ===
+if __name__ == '__main__':
+    run_self_destruct_timer()
 
-# === BOT STARTUP ===
+    app = ApplicationBuilder().token(TOKEN).build()
 
-def main():
-    token = os.getenv("TELEGRAM_TOKEN")
-    if not token:
-        raise EnvironmentError("TELEGRAM_TOKEN not set.")
-    
-    app = ApplicationBuilder().token(token).build()
-    
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CommandHandler("summary", cmd_summary))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("b", cmd_b))
-    app.add_handler(CommandHandler("summary", cmd_summary))
+    app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("start", cmd_help))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    logger.info("🚀 Bot running...")
+    print("🚀 Walkathon Check-in Bot is now running...")
     app.run_polling()
-
-if __name__ == "__main__":
-    main()
