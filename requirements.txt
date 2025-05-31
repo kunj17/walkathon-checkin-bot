@@ -7,3 +7,4 @@ pyzbar==0.1.9
 opencv-python-headless==4.9.0.80
 fuzzywuzzy==0.18.0
 python-Levenshtein==0.25.1
+numpy<2
