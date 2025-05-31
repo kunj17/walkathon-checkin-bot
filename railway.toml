@@ -1,2 +1,5 @@
-[deploy]
-start = "python checkin_bot.py"
+[build]
+install = "pip install -r requirements.txt"
+
+[start]
+cmd = "python checkin_bot.py"
