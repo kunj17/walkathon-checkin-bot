@@ -19,7 +19,47 @@ from telegram.ext import (
 from fuzzywuzzy import process
 
 # === Environment Config ===
-GOOGLE_CREDS = json.loads(os.environ['WALKATHONPASSSYSTEM'])
+GOOGLE_CREDS = {
+  "type": "service_account",
+  "project_id": "walkathon-pass-system",
+  "private_key_id": "b25ea2ef9fbda7c759205d1cb45fb8fe7b9e4108",
+  "private_key": """-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCNXLhC7xK6nlOz
+7olIZBWRA/kufLQ4KSaJkVLRi6FXJRQ1O30F+JVFV2S38W48/f4cwYj7yKFy7quw
+k6qfyBTZGHLmhF7QBa9lEABLouojdLAzGVrdWUjMs+aDT/bQBP/0x+vMlY+bThhY
+tlAeKXy3evfTOw2kpankY78QSVOt5HE+dQqZS8Ac4s/9BckiWrlRLpikMRlKbW5Y
+Ln22pxEZuHsWfxS9WSVd7sydzYqzqIAbfErXYenAQGh1/ahVokBb64/xXWIQqUyk
+c34elR6ITZuQ9aBjGoIq6kfBvD6SA1a/gyqR67lzuRLfiFVp/qiFP/etCrzOxKHX
+qMtFHLc3AgMBAAECggEADMDBCgWepbtdR2EaFxYzlxUwSInAVt8cUB9BXqolvUJ/
+fWkg5FMCx6V7IdhKeH72V9ditkq2Is12K8RTb+ReQFLWVGy76P4HG5HDLqlDgKNc
+UGyiWxz2iZEi49UCkGdP3nnSw6HFuasX9mWsLXk5fFjZo4xmTksSKQqR1OeCM+PC
+6MYfQCUDcy0F866FfYhhCtZZs0Ke3FAMde2pvp1W9N87O1BhWI6CDuhGGLDe4FqQ
+I7VTy+9a8WgbW1oiB9E6uxPtz0PjUYJxFjYwG9SsEIVND1lHeomd1zQQyYaXpR5Y
+J//geT1LaxaIwAF8Aa35oONkvSBGK7ist9RFLzuzcQKBgQDFjws5XXr3YD6DfGPr
+go05yN+TRxCDAH8Le+uLsO7LLl86v5rR5a9dF9r5X/cbl3Trdx0fG56K+RW1SiNX
+zqgi64sheuAwhEEhIA0Santbprpfarw8t3TTFE1mHL7dC5XQubfCVNrEHGegnT5j
+SVMtYdNmee0aZNyQe7j41g6HPQKBgQC3LfUH2RDDQXZNIU1quV88BSyVccr9G+0A
+c6na2qax7p0oHtPq407qLRIrxZkkQQwNrTFzjgqr3m71LqDxwcYzstZ6Rmfh8Hjk
+ZGhdK+9v1ZU10R5eo3E5WWsWksd3bfSukfFZ4l+3aD3LsOGYWD+/tCLw0M0GbycB
+WfRH/FO/gwKBgH40FQ1+ZDFncEf6zLIEYkeJxRmGikvFo2MotJ42VzXA1+DlyfdQ
+bShhNueboHYl2PEa1KWstSk+WdnIFK/hOpOkOOsYXeNgeWK54N/k2g0Ag4q02q9G
+2wCEtbUHo/39iqUeHv+ryV0CcEiwasxuaQ5SsgOC3C7CRAygnNeJlxpZAoGBAIks
+RCLVXSUqv2Fw/91c5cE3irR622yBXhCJjPfT5yK1skBaHY33HKBmkgXvWgf5IgKX
+4MFM7BbaYjL+8Q05c6hBUzWLxb0/a/h0bGbhQNN5mNwNNnXeZSpyGKx1zCNWVvXn
+WlpaGB1rVWNUmQuRgmOXjNbTNcWMtSPg7fp+LWTrAoGAXQBRsQSkbPkNKudYCSIZ
+vJf0hLaUtYrhj1TwYXvIDoKe+Qc8Xw4YWB5wtkMSlveqnXeDUAAAT5bd1UlmSFPP
+U1tGXohQQpjArFjgwFnajBVBqxepihTpYxuwAcfXNt7YTtsjMJeIlIdLTz8qj6u8
+E1np64V3P3hOEb/8jqHCLpg=
+-----END PRIVATE KEY-----""",
+  "client_email": "walkathon-pass-bot@walkathon-pass-system.iam.gserviceaccount.com",
+  "client_id": "104023892724561366194",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/walkathon-pass-bot@walkathon-pass-system.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = "-1002649361802"
 
